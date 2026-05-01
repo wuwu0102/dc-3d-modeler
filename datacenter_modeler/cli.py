@@ -131,11 +131,10 @@ def main() -> None:
         ifc_path = out_dir / "datacenter_model.ifc"
         obj_path = out_dir / "datacenter_model.obj"
         mtl_path = out_dir / "datacenter_model.mtl"
+        export_layout_obj(layout, obj_path, mtl_path)
+        output_files.extend([obj_path, mtl_path])
         if export_layout_ifc(layout, ifc_path):
             output_files.append(ifc_path)
-        else:
-            export_layout_obj(layout, obj_path, mtl_path)
-            output_files.extend([obj_path, mtl_path])
 
         print("Generated output files:")
         for p in output_files:
@@ -144,10 +143,13 @@ def main() -> None:
         print("\nCAD 2D:")
         print("- datacenter_floorplan.dxf")
         print("- datacenter_floorplan.svg")
-        print("\nRevit / 3D:")
-        print("- datacenter_model.ifc")
-        if obj_path.exists():
-            print("- datacenter_model.obj if IFC fallback used")
+        print("\n3D reference:")
+        print("- datacenter_model.obj")
+        print("- datacenter_model.mtl")
+        print("- datacenter_model.ifc if available")
+        print("\nWindows conversion helpers:")
+        print("- tools/windows/convert_dxf_to_dwg_README.md")
+        print("- tools/revit/README_RVT_WORKFLOW.md")
 
 
 if __name__ == "__main__":

@@ -21,18 +21,30 @@ python -m datacenter_modeler.cli demo-all
 - datacenter_modeler/output/datacenter_layout_scaled.json
 - datacenter_modeler/output/datacenter_floorplan.dxf（R12 ASCII）
 - datacenter_modeler/output/datacenter_floorplan.svg
-- datacenter_modeler/output/datacenter_model.ifc
-- datacenter_modeler/output/datacenter_model.obj（IFC fallback）
-- datacenter_modeler/output/datacenter_model.mtl（IFC fallback）
+- datacenter_modeler/output/datacenter_model.obj
+- datacenter_modeler/output/datacenter_model.mtl
+- datacenter_modeler/output/datacenter_model.ifc（視 ifcopenshell 是否可用）
 - datacenter_modeler/output/heat_load_report.json
 - datacenter_modeler/output/heat_load_report.md
 
-## CAD 使用方式
+## 輸出檔案等級
+
+### 雲端可直接產生
+- SVG
+- DXF
+- OBJ/MTL
+- IFC（視 ifcopenshell）
+
+### Windows 本機轉換
+- DXF → DWG：使用 AutoCAD 另存（或 `tools/windows/convert_dxf_to_dwg.scr`）
+- JSON/OBJ → RVT：需 Revit API / Dynamo / Revit Add-in
+
+## CAD 使用方式（DWG）
 1. 下載 `datacenter_floorplan.dxf`
 2. 用 AutoCAD 開啟
-3. 若 AutoCAD 詢問版本，選 DXF R12 / ASCII
+3. 另存成 `datacenter_floorplan.dwg`，或執行 `tools/windows/convert_dxf_to_dwg.scr`
 
 ## Revit 使用方式
-1. 優先匯入 `datacenter_model.ifc`
-2. 若 IFC 無法使用，使用 `datacenter_model.obj` 作為 3D reference model
-3. 第一版模型是設備 box model，不是正式 BIM family
+1. 可匯入 `datacenter_floorplan.dxf` 作為 2D 底圖
+2. 可使用 `datacenter_model.obj` / `datacenter_model.mtl` 作為 3D reference model
+3. 需要真正 `.rvt` 時，請參考 `tools/revit/README_RVT_WORKFLOW.md` 與 `tools/revit/create_rvt_from_layout_README.md`
