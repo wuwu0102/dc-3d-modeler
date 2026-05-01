@@ -7,6 +7,7 @@ from pathlib import Path
 from datacenter_modeler.export_dxf import export_floorplan_dxf, export_floorplan_svg
 from datacenter_modeler.export_ifc import export_layout_ifc
 from datacenter_modeler.export_obj import export_layout_obj
+from datacenter_modeler.geometry_utils import get_centered_equipment
 from datacenter_modeler.heat_load import calculate_heat_load, save_heat_report_json, save_heat_report_md
 from datacenter_modeler.io import ensure_output_dir, load_layout, save_layout
 from datacenter_modeler.package_outputs import create_output_package
@@ -14,6 +15,12 @@ from datacenter_modeler.scale import apply_calibration
 
 BASE_DIR = Path(__file__).resolve().parent
 EXAMPLE_LAYOUT = BASE_DIR / "examples" / "sample_datacenter_layout.json"
+
+
+def _warn_far_coordinates(layout) -> None:
+    for eq in get_centered_equipment(layout):
+        if abs(eq.x) > 100 or abs(eq.y) > 100:
+            print(f"WARNING: {eq.name} centered coordinate is beyond 100m: ({eq.x:.3f}, {eq.y:.3f})")
 
 
 def cmd_init() -> Path:
@@ -37,30 +44,28 @@ def cmd_calibrate(layout_path: Path, reference: str, measured: float, actual: fl
 def main() -> None:
     parser = argparse.ArgumentParser(description="Data Center Modeler CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
-
     subparsers.add_parser("init")
-
     calibrate = subparsers.add_parser("calibrate")
     calibrate.add_argument("--layout", required=True)
     calibrate.add_argument("--reference", required=True)
     calibrate.add_argument("--measured", required=True, type=float)
     calibrate.add_argument("--actual", required=True, type=float)
-
     export_dxf = subparsers.add_parser("export-dxf")
     export_dxf.add_argument("--layout", required=True)
-
     export_svg = subparsers.add_parser("export-svg")
     export_svg.add_argument("--layout", required=True)
-
     export_ifc = subparsers.add_parser("export-ifc")
     export_ifc.add_argument("--layout", required=True)
-
     heat_report = subparsers.add_parser("heat-report")
     heat_report.add_argument("--layout", required=True)
-
     subparsers.add_parser("demo-all")
-
     args = parser.parse_args()
+
+    if args.command == "demo-all":
+        out_dir = ensure_output_dir()
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.command == "init":
         cmd_init()
@@ -68,101 +73,43 @@ def main() -> None:
         cmd_calibrate(Path(args.layout), args.reference, args.measured, args.actual)
     elif args.command == "export-dxf":
         layout = load_layout(args.layout)
-        out_dir = ensure_output_dir()
-        out = out_dir / "datacenter_floorplan.dxf"
-        legacy_r12_path = out_dir / "datacenter_floorplan_r12.dxf"
-        if legacy_r12_path.exists():
-            legacy_r12_path.unlink()
-        if export_floorplan_dxf(layout, out):
-            print(f"DXF exported (R12-compatible): {out}")
+        export_floorplan_dxf(layout, ensure_output_dir() / "datacenter_floorplan.dxf")
     elif args.command == "export-svg":
         layout = load_layout(args.layout)
-        out = ensure_output_dir() / "datacenter_floorplan.svg"
-        export_floorplan_svg(layout, out)
-        print(f"SVG exported: {out}")
+        export_floorplan_svg(layout, ensure_output_dir() / "datacenter_floorplan.svg")
     elif args.command == "export-ifc":
         layout = load_layout(args.layout)
-        out_dir = ensure_output_dir()
-        ifc_out = out_dir / "datacenter_model.ifc"
-        ok = export_layout_ifc(layout, ifc_out)
-        if ok:
-            print("IFC generated successfully")
-        else:
-            obj_out = out_dir / "datacenter_model.obj"
-            mtl_out = out_dir / "datacenter_model.mtl"
-            export_layout_obj(layout, obj_out, mtl_out)
-            print("IFC skipped, OBJ generated instead")
+        ok = export_layout_ifc(layout, ensure_output_dir() / "datacenter_model.ifc")
+        if not ok:
+            print("IFC failed, use OBJ fallback.")
     elif args.command == "heat-report":
         layout = load_layout(args.layout)
         report = calculate_heat_load(layout)
         out_dir = ensure_output_dir()
-        json_path = out_dir / "heat_load_report.json"
-        md_path = out_dir / "heat_load_report.md"
-        save_heat_report_json(report, json_path)
-        save_heat_report_md(report, md_path)
-        print(f"Heat report JSON: {json_path}")
-        print(f"Heat report Markdown: {md_path}")
+        save_heat_report_json(report, out_dir / "heat_load_report.json")
+        save_heat_report_md(report, out_dir / "heat_load_report.md")
     elif args.command == "demo-all":
-        output_files = []
         layout_path = cmd_init()
-        output_files.append(layout_path)
         scaled_path = cmd_calibrate(layout_path, "Door01", 1.72, 2.10)
-        output_files.append(scaled_path)
-
         layout = load_layout(scaled_path)
+        _warn_far_coordinates(layout)
 
-        out_dir = ensure_output_dir()
-        dxf_path = out_dir / "datacenter_floorplan.dxf"
-        legacy_r12_path = out_dir / "datacenter_floorplan_r12.dxf"
-        if legacy_r12_path.exists():
-            legacy_r12_path.unlink()
-        if export_floorplan_dxf(layout, dxf_path):
-            output_files.append(dxf_path)
-
-        svg_path = ensure_output_dir() / "datacenter_floorplan.svg"
-        export_floorplan_svg(layout, svg_path)
-        output_files.append(svg_path)
+        export_floorplan_dxf(layout, out_dir / "datacenter_floorplan.dxf")
+        export_floorplan_svg(layout, out_dir / "datacenter_floorplan.svg")
 
         report = calculate_heat_load(layout)
-        json_path = ensure_output_dir() / "heat_load_report.json"
-        md_path = ensure_output_dir() / "heat_load_report.md"
-        save_heat_report_json(report, json_path)
-        save_heat_report_md(report, md_path)
-        output_files.extend([json_path, md_path])
+        save_heat_report_json(report, out_dir / "heat_load_report.json")
+        save_heat_report_md(report, out_dir / "heat_load_report.md")
 
-        ifc_path = out_dir / "datacenter_model.ifc"
-        obj_path = out_dir / "datacenter_model.obj"
-        mtl_path = out_dir / "datacenter_model.mtl"
-        export_layout_obj(layout, obj_path, mtl_path)
-        output_files.extend([obj_path, mtl_path])
-        if export_layout_ifc(layout, ifc_path):
-            print("IFC generated successfully")
-            output_files.append(ifc_path)
-        else:
-            print("IFC skipped, OBJ generated instead")
+        export_layout_obj(layout, out_dir / "datacenter_model.obj", out_dir / "datacenter_model.mtl")
+        if not export_layout_ifc(layout, out_dir / "datacenter_model.ifc"):
+            print("IFC failed, use OBJ fallback.")
 
-        package_path = create_output_package(out_dir)
-        output_files.append(package_path)
-
-        print("Generated output files:")
-        for p in output_files:
-            print(f"- {p}")
-
-        print("\nCAD 2D:")
-        print("- datacenter_floorplan.dxf")
-        print("- datacenter_floorplan.svg")
-
-        print("\nRevit / 3D:")
-        print("- datacenter_model.ifc")
-        print("- datacenter_model.obj")
-        print("- datacenter_model.mtl")
-
-        print("\nReports:")
-        print("- heat_load_report.md")
-        print("- heat_load_report.json")
-
-        print("\nPackage:")
-        print("- datacenter_modeling_outputs.zip")
+        create_output_package(out_dir)
+        print("\nCAD 2D:\n- datacenter_floorplan.dxf\n- datacenter_floorplan.svg")
+        print("\nRevit / 3D:\n- datacenter_model.ifc\n- datacenter_model.obj\n- datacenter_model.mtl")
+        print("\nReports:\n- heat_load_report.md\n- heat_load_report.json")
+        print("\nPackage:\n- datacenter_modeling_outputs.zip")
 
 
 if __name__ == "__main__":
