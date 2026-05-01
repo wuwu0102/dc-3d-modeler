@@ -1,0 +1,50 @@
+from pathlib import Path
+
+import pytest
+
+from datacenter_modeler.export_dxf import export_floorplan_dxf, export_floorplan_svg
+from datacenter_modeler.export_ifc import export_layout_ifc
+from datacenter_modeler.heat_load import calculate_heat_load
+from datacenter_modeler.io import load_layout
+from datacenter_modeler.scale import calculate_scale_factor
+
+
+def test_calculate_scale_factor():
+    assert calculate_scale_factor(1.72, 2.10) == pytest.approx(2.10 / 1.72)
+
+
+def test_sample_layout_loadable():
+    layout = load_layout("datacenter_modeler/examples/sample_datacenter_layout.json")
+    assert layout.project_name == "Sample Data Center Room"
+    assert len(layout.equipment) >= 24
+
+
+def test_heat_load_total_it_kw():
+    layout = load_layout("datacenter_modeler/examples/sample_datacenter_layout.json")
+    report = calculate_heat_load(layout)
+    assert report["total_it_load_kw"] == 200
+
+
+def test_svg_export(tmp_path: Path):
+    layout = load_layout("datacenter_modeler/examples/sample_datacenter_layout.json")
+    out = tmp_path / "floorplan.svg"
+    export_floorplan_svg(layout, out)
+    assert out.exists()
+
+
+def test_dxf_export(tmp_path: Path):
+    layout = load_layout("datacenter_modeler/examples/sample_datacenter_layout.json")
+    out = tmp_path / "floorplan.dxf"
+    export_floorplan_dxf(layout, out)
+    assert out.exists()
+
+
+def test_ifc_export_optional_dependency(tmp_path: Path, capsys):
+    layout = load_layout("datacenter_modeler/examples/sample_datacenter_layout.json")
+    out = tmp_path / "model.ifc"
+    ok = export_layout_ifc(layout, out)
+    if ok:
+        assert out.exists()
+    else:
+        captured = capsys.readouterr()
+        assert "IfcOpenShell is required" in captured.out
