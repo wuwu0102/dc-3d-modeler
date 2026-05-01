@@ -48,3 +48,20 @@ python -m datacenter_modeler.cli demo-all
 1. 可匯入 `datacenter_floorplan.dxf` 作為 2D 底圖
 2. 可使用 `datacenter_model.obj` / `datacenter_model.mtl` 作為 3D reference model
 3. 需要真正 `.rvt` 時，請參考 `tools/revit/README_RVT_WORKFLOW.md` 與 `tools/revit/create_rvt_from_layout_README.md`
+
+## One-click output package
+
+Run:
+
+`python -m datacenter_modeler.cli demo-all`
+
+Download:
+
+`datacenter_modeler/output/datacenter_modeling_outputs.zip`
+
+The ZIP includes CAD / Revit / 3D / report files for delivery.
+
+- AutoCAD: open `datacenter_floorplan.dxf`, then save as DWG if needed.
+- Revit: open `datacenter_model.ifc` first.
+- If IFC is unstable, use `datacenter_model.obj` + `datacenter_model.mtl` as 3D reference.
+- `heat_load_report.md` is the heat load report.

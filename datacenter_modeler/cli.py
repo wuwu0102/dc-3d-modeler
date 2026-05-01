@@ -5,9 +5,11 @@ import shutil
 from pathlib import Path
 
 from datacenter_modeler.export_dxf import export_floorplan_dxf, export_floorplan_svg
-from datacenter_modeler.export_ifc import export_layout_ifc, export_layout_obj
+from datacenter_modeler.export_ifc import export_layout_ifc
+from datacenter_modeler.export_obj import export_layout_obj
 from datacenter_modeler.heat_load import calculate_heat_load, save_heat_report_json, save_heat_report_md
 from datacenter_modeler.io import ensure_output_dir, load_layout, save_layout
+from datacenter_modeler.package_outputs import create_output_package
 from datacenter_modeler.scale import apply_calibration
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -84,12 +86,12 @@ def main() -> None:
         ifc_out = out_dir / "datacenter_model.ifc"
         ok = export_layout_ifc(layout, ifc_out)
         if ok:
-            print(f"IFC exported: {ifc_out}")
+            print("IFC generated successfully")
         else:
             obj_out = out_dir / "datacenter_model.obj"
             mtl_out = out_dir / "datacenter_model.mtl"
             export_layout_obj(layout, obj_out, mtl_out)
-            print(f"OBJ fallback exported: {obj_out}")
+            print("IFC skipped, OBJ generated instead")
     elif args.command == "heat-report":
         layout = load_layout(args.layout)
         report = calculate_heat_load(layout)
@@ -134,7 +136,13 @@ def main() -> None:
         export_layout_obj(layout, obj_path, mtl_path)
         output_files.extend([obj_path, mtl_path])
         if export_layout_ifc(layout, ifc_path):
+            print("IFC generated successfully")
             output_files.append(ifc_path)
+        else:
+            print("IFC skipped, OBJ generated instead")
+
+        package_path = create_output_package(out_dir)
+        output_files.append(package_path)
 
         print("Generated output files:")
         for p in output_files:
@@ -143,13 +151,18 @@ def main() -> None:
         print("\nCAD 2D:")
         print("- datacenter_floorplan.dxf")
         print("- datacenter_floorplan.svg")
-        print("\n3D reference:")
+
+        print("\nRevit / 3D:")
+        print("- datacenter_model.ifc")
         print("- datacenter_model.obj")
         print("- datacenter_model.mtl")
-        print("- datacenter_model.ifc if available")
-        print("\nWindows conversion helpers:")
-        print("- tools/windows/convert_dxf_to_dwg_README.md")
-        print("- tools/revit/README_RVT_WORKFLOW.md")
+
+        print("\nReports:")
+        print("- heat_load_report.md")
+        print("- heat_load_report.json")
+
+        print("\nPackage:")
+        print("- datacenter_modeling_outputs.zip")
 
 
 if __name__ == "__main__":

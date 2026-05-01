@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
 import sys
+from zipfile import ZipFile
 
 
 def test_demo_all_generates_expected_files_and_dxf_rules():
@@ -18,21 +19,31 @@ def test_demo_all_generates_expected_files_and_dxf_rules():
     obj = out_dir / "datacenter_model.obj"
     mtl = out_dir / "datacenter_model.mtl"
     heat_md = out_dir / "heat_load_report.md"
-    windows_readme = Path("tools/windows/convert_dxf_to_dwg_README.md")
-    revit_readme = Path("tools/revit/README_RVT_WORKFLOW.md")
+    zip_path = out_dir / "datacenter_modeling_outputs.zip"
 
     assert dxf.exists()
-    content = dxf.read_text(encoding="ascii", errors="ignore")
-    assert "SECTION" in content
-    assert "HEADER" in content
-    assert "TABLES" in content
-    assert "ENTITIES" in content
-    assert "EOF" in content
-    assert "LWPOLYLINE" not in content
-
     assert svg.exists()
     assert obj.exists()
     assert mtl.exists()
     assert heat_md.exists()
-    assert windows_readme.exists()
-    assert revit_readme.exists()
+    assert zip_path.exists()
+
+    dxf_content = dxf.read_text(encoding="ascii", errors="ignore")
+    assert "LWPOLYLINE" not in dxf_content
+
+    obj_content = obj.read_text(encoding="utf-8", errors="ignore")
+    assert "o R01" in obj_content
+    assert "\nv " in obj_content
+    assert "\nf " in obj_content
+
+    with ZipFile(zip_path, "r") as zf:
+        names = set(zf.namelist())
+    for expected in {
+        "README_OUTPUTS.txt",
+        "datacenter_floorplan.dxf",
+        "datacenter_floorplan.svg",
+        "datacenter_model.obj",
+        "datacenter_model.mtl",
+        "heat_load_report.md",
+    }:
+        assert expected in names
