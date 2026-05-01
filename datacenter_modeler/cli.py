@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 
 from datacenter_modeler.export_dxf import export_floorplan_dxf, export_floorplan_svg
-from datacenter_modeler.export_ifc import export_layout_ifc
+from datacenter_modeler.export_ifc import export_layout_ifc, export_layout_obj
 from datacenter_modeler.heat_load import calculate_heat_load, save_heat_report_json, save_heat_report_md
 from datacenter_modeler.io import ensure_output_dir, load_layout, save_layout
 from datacenter_modeler.scale import apply_calibration
@@ -80,10 +80,16 @@ def main() -> None:
         print(f"SVG exported: {out}")
     elif args.command == "export-ifc":
         layout = load_layout(args.layout)
-        out = ensure_output_dir() / "datacenter_model.ifc"
-        ok = export_layout_ifc(layout, out)
+        out_dir = ensure_output_dir()
+        ifc_out = out_dir / "datacenter_model.ifc"
+        ok = export_layout_ifc(layout, ifc_out)
         if ok:
-            print(f"IFC exported: {out}")
+            print(f"IFC exported: {ifc_out}")
+        else:
+            obj_out = out_dir / "datacenter_model.obj"
+            mtl_out = out_dir / "datacenter_model.mtl"
+            export_layout_obj(layout, obj_out, mtl_out)
+            print(f"OBJ fallback exported: {obj_out}")
     elif args.command == "heat-report":
         layout = load_layout(args.layout)
         report = calculate_heat_load(layout)
@@ -122,15 +128,26 @@ def main() -> None:
         save_heat_report_md(report, md_path)
         output_files.extend([json_path, md_path])
 
-        ifc_path = ensure_output_dir() / "datacenter_model.ifc"
+        ifc_path = out_dir / "datacenter_model.ifc"
+        obj_path = out_dir / "datacenter_model.obj"
+        mtl_path = out_dir / "datacenter_model.mtl"
         if export_layout_ifc(layout, ifc_path):
             output_files.append(ifc_path)
         else:
-            print("Skipping IFC export due to missing dependency.")
+            export_layout_obj(layout, obj_path, mtl_path)
+            output_files.extend([obj_path, mtl_path])
 
         print("Generated output files:")
         for p in output_files:
             print(f"- {p}")
+
+        print("\nCAD 2D:")
+        print("- datacenter_floorplan.dxf")
+        print("- datacenter_floorplan.svg")
+        print("\nRevit / 3D:")
+        print("- datacenter_model.ifc")
+        if obj_path.exists():
+            print("- datacenter_model.obj if IFC fallback used")
 
 
 if __name__ == "__main__":

@@ -19,23 +19,20 @@ python -m datacenter_modeler.cli demo-all
 ## 輸出檔案
 - datacenter_modeler/output/datacenter_layout.json
 - datacenter_modeler/output/datacenter_layout_scaled.json
-- datacenter_modeler/output/datacenter_floorplan.dxf（R12 相容格式）
+- datacenter_modeler/output/datacenter_floorplan.dxf（R12 ASCII）
 - datacenter_modeler/output/datacenter_floorplan.svg
 - datacenter_modeler/output/datacenter_model.ifc
+- datacenter_modeler/output/datacenter_model.obj（IFC fallback）
+- datacenter_modeler/output/datacenter_model.mtl（IFC fallback）
 - datacenter_modeler/output/heat_load_report.json
 - datacenter_modeler/output/heat_load_report.md
 
-## 使用概念
-1. 使用手機繞機房走一圈拍攝
-2. core_engine 產生 3D reconstruction
-3. datacenter_modeler 匯入或建立 layout
-4. 使用門寬/門高做比例校正
-5. 輸出 CAD 2D 與 Revit IFC
-6. 人工複核尺寸誤差
+## CAD 使用方式
+1. 下載 `datacenter_floorplan.dxf`
+2. 用 AutoCAD 開啟
+3. 若 AutoCAD 詢問版本，選 DXF R12 / ASCII
 
-## 限制
-- 第一版不是正式 BIM / Revit / CFD 替代品
-- 手機影像重建會有比例與幾何誤差
-- 需要用門、柱距、地磚、機櫃標準尺寸等已知尺寸校正
-- DXF 是 2D top-view floor plan
-- IFC 第一版可能是 semantic placeholder，後續可升級成真實 3D box geometry
+## Revit 使用方式
+1. 優先匯入 `datacenter_model.ifc`
+2. 若 IFC 無法使用，使用 `datacenter_model.obj` 作為 3D reference model
+3. 第一版模型是設備 box model，不是正式 BIM family
