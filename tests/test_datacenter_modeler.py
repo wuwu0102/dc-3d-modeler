@@ -52,15 +52,12 @@ def test_ifc_export_optional_dependency(tmp_path: Path, capsys):
         assert "IfcOpenShell is required" in captured.out
 
 
-def test_dxf_export_r12_and_structure(tmp_path: Path):
+def test_dxf_export_r12_structure(tmp_path: Path):
     layout = load_layout("datacenter_modeler/examples/sample_datacenter_layout.json")
-    out1 = tmp_path / "datacenter_floorplan.dxf"
-    out2 = tmp_path / "datacenter_floorplan_r12.dxf"
-    export_floorplan_dxf(layout, out1)
-    export_floorplan_dxf(layout, out2)
-    assert out1.exists()
-    assert out2.exists()
-    content = out1.read_text(encoding="utf-8", errors="ignore")
+    out = tmp_path / "datacenter_floorplan.dxf"
+    export_floorplan_dxf(layout, out)
+    assert out.exists()
+    content = out.read_text(encoding="utf-8", errors="ignore")
     assert "SECTION" in content
     assert "ENTITIES" in content
     assert "EOF" in content
@@ -108,5 +105,5 @@ def test_demo_all_generates_expected_files():
     assert result.returncode == 0, result.stderr
     out_dir = Path("datacenter_modeler/output")
     assert (out_dir / "datacenter_floorplan.dxf").exists()
-    assert (out_dir / "datacenter_floorplan_r12.dxf").exists()
+    assert not (out_dir / "datacenter_floorplan_r12.dxf").exists()
     assert (out_dir / "datacenter_floorplan.svg").exists()

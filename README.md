@@ -19,7 +19,7 @@ python -m datacenter_modeler.cli demo-all
 ## 輸出檔案
 - datacenter_modeler/output/datacenter_layout.json
 - datacenter_modeler/output/datacenter_layout_scaled.json
-- datacenter_modeler/output/datacenter_floorplan.dxf
+- datacenter_modeler/output/datacenter_floorplan.dxf（R12 相容格式）
 - datacenter_modeler/output/datacenter_floorplan.svg
 - datacenter_modeler/output/datacenter_model.ifc
 - datacenter_modeler/output/heat_load_report.json
