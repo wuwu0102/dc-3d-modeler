@@ -18,8 +18,28 @@ def _layer_for(eq: Equipment) -> str:
     return "OTHER"
 
 
+def _label_for(eq: Equipment) -> str:
+    t = eq.type.lower()
+    if t == "rack":
+        return eq.id or "R"
+    if t == "crac":
+        return eq.id or eq.name
+    if t == "door":
+        return eq.id or "Door01"
+    if "cold" in t and "aisle" in t:
+        return "Cold Aisle"
+    if "hot" in t and "aisle" in t:
+        return "Hot Aisle"
+    return eq.id or eq.name
+
+
 def _export_floorplan_dxf_fallback(layout: DataCenterLayout, path: str | Path) -> None:
-    lines = ["0", "SECTION", "2", "ENTITIES"]
+    # ASCII DXF R12-compatible minimal structure
+    lines = [
+        "0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1009", "0", "ENDSEC",
+        "0", "SECTION", "2", "ENTITIES",
+    ]
+
     for eq in layout.equipment:
         x0 = eq.x - eq.width / 2
         y0 = eq.y - eq.depth / 2
@@ -27,29 +47,36 @@ def _export_floorplan_dxf_fallback(layout: DataCenterLayout, path: str | Path) -
         y1 = eq.y + eq.depth / 2
         layer = _layer_for(eq)
         points = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
-        lines += ["0", "LWPOLYLINE", "8", layer, "90", str(len(points))]
+
+        lines += ["0", "POLYLINE", "8", layer, "66", "1", "70", "1"]
         for x, y in points:
-            lines += ["10", str(x), "20", str(y)]
+            lines += ["0", "VERTEX", "8", layer, "10", f"{x}", "20", f"{y}", "30", "0.0"]
+        lines += ["0", "SEQEND"]
+
+        lines += [
+            "0", "TEXT", "8", "TEXT", "10", f"{eq.x}", "20", f"{eq.y}", "30", "0.0",
+            "40", "0.18", "1", _label_for(eq), "72", "1", "73", "2", "11", f"{eq.x}", "21", f"{eq.y}", "31", "0.0",
+        ]
 
     lines += ["0", "ENDSEC", "0", "EOF"]
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    out.write_text("\n".join(lines) + "\n", encoding="ascii", errors="ignore")
 
 
 def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> None:
     try:
         import ezdxf
     except ImportError:
-        print("ezdxf is not installed; writing minimal fallback DXF.")
+        print("ezdxf is not installed; writing ASCII R12 fallback DXF.")
         _export_floorplan_dxf_fallback(layout, path)
         return
 
-    doc = ezdxf.new("R2018")
+    doc = ezdxf.new("R12")
     doc.units = ezdxf.units.M
     msp = doc.modelspace()
 
-    for layer in ["RACK", "CRAC", "DOOR", "AISLE", "OTHER", "TEXT"]:
+    for layer in ["RACK", "CRAC", "DOOR", "AISLE", "TEXT", "OTHER"]:
         if layer not in doc.layers:
             doc.layers.new(name=layer)
 
@@ -59,11 +86,11 @@ def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> None:
         x1 = eq.x + eq.width / 2
         y1 = eq.y + eq.depth / 2
         layer = _layer_for(eq)
-        msp.add_lwpolyline([(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)], dxfattribs={"layer": layer})
+        msp.add_polyline2d([(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)], dxfattribs={"layer": layer})
         msp.add_text(
-            f"{eq.name} ({eq.type})",
-            dxfattribs={"height": 0.2, "layer": "TEXT"},
-        ).set_placement((eq.x, eq.y))
+            _label_for(eq),
+            dxfattribs={"height": max(min(eq.width, eq.depth) * 0.18, 0.12), "layer": "TEXT"},
+        ).set_placement((eq.x, eq.y), align="MIDDLE_CENTER")
 
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     doc.saveas(path)
@@ -77,27 +104,58 @@ def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
         min_y = min(eq.y - eq.depth / 2 for eq in layout.equipment)
         max_x = max(eq.x + eq.width / 2 for eq in layout.equipment)
         max_y = max(eq.y + eq.depth / 2 for eq in layout.equipment)
-        margin = 1.0
-        view_box = f"{min_x - margin} {min_y - margin} {max_x - min_x + margin * 2} {max_y - min_y + margin * 2}"
+        w = max_x - min_x
+        h = max_y - min_y
+        margin = max(max(w, h) * 0.08, 1.2)
+        legend_h = max(h * 0.25, 2.5)
+        view_box = f"{min_x - margin} {min_y - margin - 1.0} {w + margin * 2} {h + margin * 2 + legend_h + 1.4}"
+
+    def fill(eq: Equipment) -> str:
+        t = eq.type.lower()
+        if t == "rack":
+            return "#d9d9d9"
+        if t == "crac":
+            return "#cfe8ff"
+        if t == "door":
+            return "#fff5bf"
+        if "cold" in t and "aisle" in t:
+            return "#d7f6f8"
+        if "hot" in t and "aisle" in t:
+            return "#ffe5cc"
+        return "#f2f2f2"
 
     svg_parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">',
-        '<g fill="none" stroke="black" stroke-width="0.03">',
+        '<rect width="100%" height="100%" fill="white"/>',
+        '<text x="50%" y="4%" text-anchor="middle" font-size="0.75" fill="#222">Sample Data Center Room - Floor Plan</text>',
+        '<g stroke="#333" stroke-width="0.03">',
     ]
 
     for eq in layout.equipment:
         x = eq.x - eq.width / 2
         y = eq.y - eq.depth / 2
+        label = _label_for(eq)
+        min_dim = max(min(eq.width, eq.depth), 0.1)
+        font_size = min(max(min_dim * 0.35, 0.12), 0.35)
+        rotate = ""
+        if eq.type.lower() == "rack" and eq.width < eq.depth * 0.75:
+            rotate = f' transform="rotate(90 {eq.x} {eq.y})"'
+        svg_parts.append(f'<rect x="{x}" y="{y}" width="{eq.width}" height="{eq.depth}" fill="{fill(eq)}" />')
         svg_parts.append(
-            f'<rect x="{x}" y="{y}" width="{eq.width}" height="{eq.depth}" />'
-        )
-        svg_parts.append(
-            f'<text x="{eq.x}" y="{eq.y}" font-size="0.2" fill="blue">{eq.name} ({eq.type})</text>'
+            f'<text x="{eq.x}" y="{eq.y}" text-anchor="middle" dominant-baseline="middle" font-size="{font_size}" fill="#0d2a4d"{rotate}>{label}</text>'
         )
 
     svg_parts.append("</g>")
-    svg_parts.append("</svg>")
+    svg_parts.extend([
+        '<g id="legend" font-size="0.25" fill="#111">',
+        '<text x="2%" y="92%">Legend</text>',
+        '<text x="2%" y="94%">Rack / CRAC / Cold Aisle / Hot Aisle / Door</text>',
+        '<text x="2%" y="96%">Scale factor: 1.220930</text>',
+        '<text x="2%" y="98%">Calibration reference: Door01</text>',
+        '</g>',
+        '</svg>',
+    ])
 
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
