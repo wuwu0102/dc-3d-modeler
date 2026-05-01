@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -94,3 +96,17 @@ def test_heat_load_markdown_contains_chinese_sections(tmp_path: Path):
     assert "熱負載報告" in content
     assert "工程判讀" in content
     assert "目前空調容量不足" in content
+
+
+def test_demo_all_generates_expected_files():
+    result = subprocess.run(
+        [sys.executable, "-m", "datacenter_modeler.cli", "demo-all"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    out_dir = Path("datacenter_modeler/output")
+    assert (out_dir / "datacenter_floorplan.dxf").exists()
+    assert (out_dir / "datacenter_floorplan_r12.dxf").exists()
+    assert (out_dir / "datacenter_floorplan.svg").exists()

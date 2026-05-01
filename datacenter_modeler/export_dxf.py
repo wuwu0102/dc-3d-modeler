@@ -40,7 +40,7 @@ def _fit_svg_text(eq: Equipment, label: str) -> tuple[str, float, bool]:
     rotate = eq.type.lower() == "rack" and eq.width < eq.depth
     effective_width = height_limit if rotate else width_limit
 
-    for size in (0.24, 0.18, 0.12):
+    for size in (0.2, 0.16, 0.12):
         est_w = len(label) * size * 0.62
         if est_w <= effective_width and size <= height_limit:
             return label, size, rotate
@@ -104,10 +104,14 @@ def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> bool:
         y1 = eq.y + eq.depth / 2
         layer = _layer_for(eq)
 
-        msp.add_lwpolyline(
-            [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)],
-            dxfattribs={"layer": layer, "closed": True},
+        edges = (
+            ((x0, y0), (x1, y0)),
+            ((x1, y0), (x1, y1)),
+            ((x1, y1), (x0, y1)),
+            ((x0, y1), (x0, y0)),
         )
+        for start, end in edges:
+            msp.add_line(start, end, dxfattribs={"layer": layer})
 
         label = _label_for(eq)
         text_h = max(min(min(eq.width, eq.depth) * 0.28, 0.3), 0.12)
@@ -154,7 +158,7 @@ def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">',
         '<rect width="100%" height="100%" fill="white"/>',
-        '<text x="50%" y="4%" text-anchor="middle" font-size="0.75" fill="#222">Sample Data Center Room - Floor Plan</text>',
+        '<text x="50%" y="4%" text-anchor="middle" dominant-baseline="middle" font-size="0.75" fill="#222">Sample Data Center Room - Floor Plan</text>',
         '<g stroke="#333" stroke-width="0.03">',
     ]
 
@@ -172,10 +176,10 @@ def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
     svg_parts.append("</g>")
     svg_parts.extend([
         '<g id="legend" font-size="0.25" fill="#111">',
-        '<text x="2%" y="92%">Legend</text>',
-        '<text x="2%" y="94%">Rack / CRAC / Cold Aisle / Hot Aisle / Door</text>',
-        '<text x="2%" y="96%">Scale factor: 1.220930</text>',
-        '<text x="2%" y="98%">Calibration reference: Door01</text>',
+        '<text x="50%" y="92%" text-anchor="middle" dominant-baseline="middle">Legend</text>',
+        '<text x="50%" y="94%" text-anchor="middle" dominant-baseline="middle">Rack / CRAC / Cold Aisle / Hot Aisle / Door</text>',
+        '<text x="50%" y="96%" text-anchor="middle" dominant-baseline="middle">Scale factor: 1.220930</text>',
+        '<text x="50%" y="98%" text-anchor="middle" dominant-baseline="middle">Calibration reference: Door01</text>',
         '</g>',
         '</svg>',
     ])
