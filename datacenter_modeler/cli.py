@@ -69,10 +69,12 @@ def main() -> None:
         out_dir = ensure_output_dir()
         out = out_dir / "datacenter_floorplan.dxf"
         out_r12 = out_dir / "datacenter_floorplan_r12.dxf"
-        export_floorplan_dxf(layout, out)
-        export_floorplan_dxf(layout, out_r12)
-        print(f"DXF exported: {out}")
-        print(f"DXF (R12) exported: {out_r12}")
+        ok_main = export_floorplan_dxf(layout, out)
+        ok_r12 = export_floorplan_dxf(layout, out_r12)
+        if ok_main:
+            print(f"DXF exported: {out}")
+        if ok_r12:
+            print(f"DXF (R12) exported: {out_r12}")
     elif args.command == "export-svg":
         layout = load_layout(args.layout)
         out = ensure_output_dir() / "datacenter_floorplan.svg"
@@ -106,9 +108,10 @@ def main() -> None:
         out_dir = ensure_output_dir()
         dxf_path = out_dir / "datacenter_floorplan.dxf"
         dxf_r12_path = out_dir / "datacenter_floorplan_r12.dxf"
-        export_floorplan_dxf(layout, dxf_path)
-        export_floorplan_dxf(layout, dxf_r12_path)
-        output_files.extend([dxf_path, dxf_r12_path])
+        if export_floorplan_dxf(layout, dxf_path):
+            output_files.append(dxf_path)
+        if export_floorplan_dxf(layout, dxf_r12_path):
+            output_files.append(dxf_r12_path)
 
         svg_path = ensure_output_dir() / "datacenter_floorplan.svg"
         export_floorplan_svg(layout, svg_path)
