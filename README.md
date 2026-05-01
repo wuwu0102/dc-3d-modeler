@@ -65,3 +65,11 @@ The ZIP includes CAD / Revit / 3D / report files for delivery.
 - Revit: open `datacenter_model.ifc` first.
 - If IFC is unstable, use `datacenter_model.obj` + `datacenter_model.mtl` as 3D reference.
 - `heat_load_report.md` is the heat load report.
+
+
+## One command
+
+```bash
+pip install -r requirements.txt
+python -m datacenter_modeler.cli demo-all
+```

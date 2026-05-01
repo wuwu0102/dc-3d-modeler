@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from datacenter_modeler.coordinates import centered_equipment
+from datacenter_modeler.geometry_utils import get_centered_equipment, get_layout_bounds
 from datacenter_modeler.models import DataCenterLayout, Equipment
-
-TEXT_HEIGHT = 0.15
 
 
 def _layer_for(eq: Equipment) -> str:
@@ -19,6 +17,17 @@ def _layer_for(eq: Equipment) -> str:
     if "aisle" in t:
         return "AISLE"
     return "RACK"
+
+
+def _text_height(eq: Equipment) -> float:
+    t = eq.type.lower()
+    if t == "rack":
+        return 0.15
+    if t == "crac":
+        return 0.18
+    if "aisle" in t:
+        return 0.20
+    return 0.15
 
 
 def _label_for(eq: Equipment, index_by_type: dict[str, int]) -> str:
@@ -43,13 +52,13 @@ def _add_line(lines: list[str], layer: str, sx: float, sy: float, ex: float, ey:
 
 
 def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> bool:
-    lines: list[str] = ["0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1009", "0", "ENDSEC", "0", "SECTION", "2", "TABLES", "0", "TABLE", "2", "LAYER", "70", "5"]
+    lines = ["0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1009", "0", "ENDSEC", "0", "SECTION", "2", "TABLES", "0", "TABLE", "2", "LAYER", "70", "5"]
     for layer, color in (("RACK", "7"), ("CRAC", "5"), ("AISLE", "4"), ("DOOR", "2"), ("TEXT", "7")):
         lines += ["0", "LAYER", "2", layer, "70", "0", "62", color, "6", "CONTINUOUS"]
     lines += ["0", "ENDTAB", "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES"]
 
     type_index: dict[str, int] = {}
-    for eq in centered_equipment(layout):
+    for eq in get_centered_equipment(layout):
         x0, y0 = eq.x - eq.width / 2, eq.y - eq.depth / 2
         x1, y1 = eq.x + eq.width / 2, eq.y + eq.depth / 2
         layer = _layer_for(eq)
@@ -58,48 +67,40 @@ def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> bool:
         _add_line(lines, layer, x1, y1, x0, y1)
         _add_line(lines, layer, x0, y1, x0, y0)
         label = _label_for(eq, type_index)
-        lines += ["0", "TEXT", "8", "TEXT", "10", f"{eq.x:.6f}", "20", f"{eq.y:.6f}", "30", "0.0", "40", f"{TEXT_HEIGHT:.2f}", "1", label]
+        lines += ["0", "TEXT", "8", "TEXT", "10", f"{eq.x:.6f}", "20", f"{eq.y:.6f}", "30", "0.0", "40", f"{_text_height(eq):.2f}", "1", label]
 
     lines += ["0", "ENDSEC", "0", "EOF"]
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(lines) + "\n", encoding="ascii", errors="ignore")
+    Path(path).write_text("\n".join(lines) + "\n", encoding="ascii", errors="ignore")
     return True
 
 
 def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
-    centered = centered_equipment(layout)
-    if not centered:
-        min_x = min_y = -5.0
-        width = height = 10.0
-    else:
-        min_x = min(eq.x - eq.width / 2 for eq in centered)
-        min_y = min(eq.y - eq.depth / 2 for eq in centered)
-        max_x = max(eq.x + eq.width / 2 for eq in centered)
-        max_y = max(eq.y + eq.depth / 2 for eq in centered)
-        width, height = max_x - min_x, max_y - min_y
-    margin = max(max(width, height) * 0.1, 1.0)
-    view_box = f"{min_x - margin:.3f} {min_y - margin:.3f} {width + 2*margin:.3f} {height + 2*margin:.3f}"
+    centered = get_centered_equipment(layout)
+    bounds = get_layout_bounds(layout)
+    width = max(bounds["max_x"] - bounds["min_x"], 6.0)
+    height = max(bounds["max_y"] - bounds["min_y"], 6.0)
+    margin = max(width, height) * 0.15
+    min_x = -width / 2 - margin
+    min_y = -height / 2 - margin
+    view_box = f"{min_x:.3f} {min_y:.3f} {width + 2 * margin:.3f} {height + 2 * margin + 1.6:.3f}"
 
-    svg_parts = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">',
-        '<rect width="100%" height="100%" fill="white"/>',
-        '<text x="0" y="-0.6" text-anchor="middle" font-size="0.28">Sample Data Center Room - Floor Plan</text>',
-    ]
-    type_index: dict[str, int] = {}
+    colors = {"rack": "#dbe8ff", "crac": "#d7f5e3", "door": "#ffe3c7", "cold": "#e2f3ff", "hot": "#ffdede"}
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>', f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">', '<rect width="100%" height="100%" fill="white"/>', '<text x="0" y="-0.9" text-anchor="middle" font-size="0.28" font-family="Arial">Sample Data Center Room - Floor Plan</text>']
+    idx: dict[str, int] = {}
     for eq in centered:
+        t = eq.type.lower()
+        label = _label_for(eq, idx)
+        fill = colors["rack"]
+        if t == "crac": fill = colors["crac"]
+        elif t == "door": fill = colors["door"]
+        elif "cold" in t and "aisle" in t: fill = colors["cold"]
+        elif "hot" in t and "aisle" in t: fill = colors["hot"]
         x = eq.x - eq.width / 2
         y = eq.y - eq.depth / 2
-        label = _label_for(eq, type_index)
-        svg_parts.append(f'<rect x="{x:.3f}" y="{y:.3f}" width="{eq.width:.3f}" height="{eq.depth:.3f}" fill="#f2f2f2" stroke="#333" stroke-width="0.03" />')
-        svg_parts.append(f'<text x="{eq.x:.3f}" y="{eq.y:.3f}" text-anchor="middle" dominant-baseline="middle" font-size="0.11">{label}</text>')
+        parts.append(f'<rect x="{x:.3f}" y="{y:.3f}" width="{eq.width:.3f}" height="{eq.depth:.3f}" fill="{fill}" stroke="#333" stroke-width="0.03"/>')
+        parts.append(f'<text x="{eq.x:.3f}" y="{eq.y:.3f}" text-anchor="middle" dominant-baseline="middle" font-size="0.11" font-family="Arial">{label}</text>')
 
-    legend_x = min_x
-    legend_y = min_y + height + 0.2
-    svg_parts.append(f'<text x="{legend_x:.3f}" y="{legend_y:.3f}" font-size="0.12">Legend: Rack / CRAC / Door / ColdAisle / HotAisle</text>')
-    svg_parts.append("</svg>")
-
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(svg_parts) + "\n", encoding="utf-8")
+    ly = height / 2 + margin + 0.2
+    parts.append(f'<text x="{-width / 2:.3f}" y="{ly:.3f}" font-size="0.14" font-family="Arial">Legend: Rack / CRAC / Door / ColdAisle / HotAisle</text>')
+    parts.append("</svg>")
+    Path(path).write_text("\n".join(parts) + "\n", encoding="utf-8")
