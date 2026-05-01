@@ -15,15 +15,15 @@ def _layer_for(eq: Equipment) -> str:
         return "DOOR"
     if "aisle" in t:
         return "AISLE"
-    return "OTHER"
+    return "TEXT"
 
 
 def _label_for(eq: Equipment) -> str:
     t = eq.type.lower()
     if t == "rack":
-        return eq.id or "R"
+        return eq.id or "R01"
     if t == "crac":
-        return eq.id or eq.name
+        return eq.id or "CRAC01"
     if t == "door":
         return eq.id or "Door01"
     if "cold" in t and "aisle" in t:
@@ -33,12 +33,32 @@ def _label_for(eq: Equipment) -> str:
     return eq.id or eq.name
 
 
-def _export_floorplan_dxf_fallback(layout: DataCenterLayout, path: str | Path) -> None:
-    # ASCII DXF R12-compatible minimal structure
+def _fit_svg_text(eq: Equipment, label: str) -> tuple[str, float, bool]:
+    # Keep 10% padding on each side => 80% drawable area.
+    width_limit = max(eq.width * 0.8, 0.08)
+    height_limit = max(eq.depth * 0.8, 0.08)
+    rotate = eq.type.lower() == "rack" and eq.width < eq.depth
+    effective_width = height_limit if rotate else width_limit
+
+    for size in (0.24, 0.18, 0.12):
+        est_w = len(label) * size * 0.62
+        if est_w <= effective_width and size <= height_limit:
+            return label, size, rotate
+
+    short_label = (eq.id or label or "R01")[:4]
+    return short_label, 0.12, rotate
+
+
+
+def _export_r12_ascii_fallback(layout: DataCenterLayout, path: str | Path) -> bool:
     lines = [
         "0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1009", "0", "ENDSEC",
-        "0", "SECTION", "2", "ENTITIES",
+        "0", "SECTION", "2", "TABLES",
+        "0", "TABLE", "2", "LAYER", "70", "5",
     ]
+    for layer, color in (("RACK", "7"), ("CRAC", "5"), ("AISLE", "4"), ("DOOR", "2"), ("TEXT", "7")):
+        lines += ["0", "LAYER", "2", layer, "70", "0", "62", color, "6", "CONTINUOUS"]
+    lines += ["0", "ENDTAB", "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES"]
 
     for eq in layout.equipment:
         x0 = eq.x - eq.width / 2
@@ -46,37 +66,34 @@ def _export_floorplan_dxf_fallback(layout: DataCenterLayout, path: str | Path) -
         x1 = eq.x + eq.width / 2
         y1 = eq.y + eq.depth / 2
         layer = _layer_for(eq)
-        points = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+        pts = ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+        for (sx, sy), (ex, ey) in zip(pts, pts[1:] + pts[:1]):
+            lines += ["0", "LINE", "8", layer, "10", f"{sx}", "20", f"{sy}", "30", "0.0", "11", f"{ex}", "21", f"{ey}", "31", "0.0"]
 
-        lines += ["0", "POLYLINE", "8", layer, "66", "1", "70", "1"]
-        for x, y in points:
-            lines += ["0", "VERTEX", "8", layer, "10", f"{x}", "20", f"{y}", "30", "0.0"]
-        lines += ["0", "SEQEND"]
-
+        label = _label_for(eq)
+        text_h = max(min(min(eq.width, eq.depth) * 0.28, 0.3), 0.12)
         lines += [
             "0", "TEXT", "8", "TEXT", "10", f"{eq.x}", "20", f"{eq.y}", "30", "0.0",
-            "40", "0.18", "1", _label_for(eq), "72", "1", "73", "2", "11", f"{eq.x}", "21", f"{eq.y}", "31", "0.0",
+            "40", f"{text_h}", "1", label, "72", "1", "73", "2", "11", f"{eq.x}", "21", f"{eq.y}", "31", "0.0",
         ]
 
     lines += ["0", "ENDSEC", "0", "EOF"]
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="ascii", errors="ignore")
+    return True
 
-
-def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> None:
+def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> bool:
     try:
         import ezdxf
     except ImportError:
-        print("ezdxf is not installed; writing ASCII R12 fallback DXF.")
-        _export_floorplan_dxf_fallback(layout, path)
-        return
+        print("ezdxf is required for DXF export. Please install it with: pip install ezdxf")
+        return _export_r12_ascii_fallback(layout, path)
 
     doc = ezdxf.new("R12")
-    doc.units = ezdxf.units.M
     msp = doc.modelspace()
 
-    for layer in ["RACK", "CRAC", "DOOR", "AISLE", "TEXT", "OTHER"]:
+    for layer in ["RACK", "CRAC", "AISLE", "DOOR", "TEXT"]:
         if layer not in doc.layers:
             doc.layers.new(name=layer)
 
@@ -86,14 +103,23 @@ def export_floorplan_dxf(layout: DataCenterLayout, path: str | Path) -> None:
         x1 = eq.x + eq.width / 2
         y1 = eq.y + eq.depth / 2
         layer = _layer_for(eq)
-        msp.add_polyline2d([(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)], dxfattribs={"layer": layer})
-        msp.add_text(
-            _label_for(eq),
-            dxfattribs={"height": max(min(eq.width, eq.depth) * 0.18, 0.12), "layer": "TEXT"},
-        ).set_placement((eq.x, eq.y), align="MIDDLE_CENTER")
 
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    doc.saveas(path)
+        msp.add_lwpolyline(
+            [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)],
+            dxfattribs={"layer": layer, "closed": True},
+        )
+
+        label = _label_for(eq)
+        text_h = max(min(min(eq.width, eq.depth) * 0.28, 0.3), 0.12)
+        msp.add_text(
+            label,
+            dxfattribs={"height": text_h, "layer": "TEXT", "insert": (eq.x, eq.y)},
+        )
+
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    doc.saveas(out)
+    return True
 
 
 def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
@@ -136,14 +162,11 @@ def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
         x = eq.x - eq.width / 2
         y = eq.y - eq.depth / 2
         label = _label_for(eq)
-        min_dim = max(min(eq.width, eq.depth), 0.1)
-        font_size = min(max(min_dim * 0.35, 0.12), 0.35)
-        rotate = ""
-        if eq.type.lower() == "rack" and eq.width < eq.depth * 0.75:
-            rotate = f' transform="rotate(90 {eq.x} {eq.y})"'
+        safe_label, font_size, rotate = _fit_svg_text(eq, label)
+        rotate_attr = f' transform="rotate(90 {eq.x} {eq.y})"' if rotate else ""
         svg_parts.append(f'<rect x="{x}" y="{y}" width="{eq.width}" height="{eq.depth}" fill="{fill(eq)}" />')
         svg_parts.append(
-            f'<text x="{eq.x}" y="{eq.y}" text-anchor="middle" dominant-baseline="middle" font-size="{font_size}" fill="#0d2a4d"{rotate}>{label}</text>'
+            f'<text x="{eq.x}" y="{eq.y}" text-anchor="middle" dominant-baseline="middle" font-size="{font_size}" fill="#0d2a4d"{rotate_attr}>{safe_label}</text>'
         )
 
     svg_parts.append("</g>")
