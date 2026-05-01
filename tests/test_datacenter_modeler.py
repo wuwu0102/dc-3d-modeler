@@ -15,9 +15,11 @@ def test_demo_all_generates_expected_files_and_dxf_rules():
     out_dir = Path("datacenter_modeler/output")
     dxf = out_dir / "datacenter_floorplan.dxf"
     svg = out_dir / "datacenter_floorplan.svg"
-    ifc = out_dir / "datacenter_model.ifc"
     obj = out_dir / "datacenter_model.obj"
+    mtl = out_dir / "datacenter_model.mtl"
     heat_md = out_dir / "heat_load_report.md"
+    windows_readme = Path("tools/windows/convert_dxf_to_dwg_README.md")
+    revit_readme = Path("tools/revit/README_RVT_WORKFLOW.md")
 
     assert dxf.exists()
     content = dxf.read_text(encoding="ascii", errors="ignore")
@@ -29,5 +31,8 @@ def test_demo_all_generates_expected_files_and_dxf_rules():
     assert "LWPOLYLINE" not in content
 
     assert svg.exists()
-    assert ifc.exists() or obj.exists()
+    assert obj.exists()
+    assert mtl.exists()
     assert heat_md.exists()
+    assert windows_readme.exists()
+    assert revit_readme.exists()
