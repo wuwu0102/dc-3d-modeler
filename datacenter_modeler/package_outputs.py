@@ -5,11 +5,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 README_TEXT = """Data Center Modeling Outputs
 
-1. AutoCAD: Open datacenter_floorplan.dxf directly, then save as DWG if needed.
-2. Revit: Prefer datacenter_model.ifc.
-3. If Revit cannot see IFC geometry, switch to 3D View and run Zoom Extents. If still not visible, use datacenter_model.obj + datacenter_model.mtl as fallback 3D reference.
-4. heat_load_report.md is the heat-load report.
-5. datacenter_layout_scaled.json is the engineering source data.
+This package contains CAD, BIM, and report deliverables exported from one command.
 """
 
 
@@ -20,14 +16,13 @@ def create_output_package(output_dir: str | Path) -> Path:
     readme_path.write_text(README_TEXT, encoding="utf-8")
 
     required = [
-        "datacenter_floorplan.dxf",
-        "datacenter_floorplan.svg",
         "datacenter_model.obj",
         "datacenter_model.mtl",
+        "datacenter_floorplan.dxf",
+        "datacenter_floorplan.svg",
         "heat_load_report.md",
-        "heat_load_report.json",
-        "datacenter_layout.json",
         "datacenter_layout_scaled.json",
+        "validation_report.md",
         "README_OUTPUTS.txt",
     ]
     optional = ["datacenter_model.ifc"]
