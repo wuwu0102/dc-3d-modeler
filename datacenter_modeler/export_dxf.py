@@ -86,18 +86,55 @@ def export_floorplan_svg(layout: DataCenterLayout, path: str | Path) -> None:
 
     colors = {"rack": "#dbe8ff", "crac": "#d7f5e3", "door": "#ffe3c7", "cold": "#e2f3ff", "hot": "#ffdede"}
     parts = ['<?xml version="1.0" encoding="UTF-8"?>', f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">', '<rect width="100%" height="100%" fill="white"/>', '<text x="0" y="-0.9" text-anchor="middle" font-size="0.28" font-family="Arial">Sample Data Center Room - Floor Plan</text>']
+
+    layers: dict[str, list[tuple[Equipment, str, str]]] = {
+        "boundary": [],
+        "wall": [],
+        "aisle": [],
+        "equipment": [],
+    }
     idx: dict[str, int] = {}
+
     for eq in centered:
         t = eq.type.lower()
         label = _label_for(eq, idx)
+        if t == "room_boundary":
+            layers["boundary"].append((eq, label, ""))
+            continue
+        if t == "wall":
+            layers["wall"].append((eq, label, ""))
+            continue
         fill = colors["rack"]
-        if t == "crac": fill = colors["crac"]
-        elif t == "door": fill = colors["door"]
-        elif "cold" in t and "aisle" in t: fill = colors["cold"]
-        elif "hot" in t and "aisle" in t: fill = colors["hot"]
+        if t == "crac":
+            fill = colors["crac"]
+        elif t == "door":
+            fill = colors["door"]
+        elif "cold" in t and "aisle" in t:
+            fill = colors["cold"]
+        elif "hot" in t and "aisle" in t:
+            fill = colors["hot"]
+
+        if "aisle" in t:
+            layers["aisle"].append((eq, label, fill))
+        else:
+            layers["equipment"].append((eq, label, fill))
+
+    labels: list[tuple[Equipment, str]] = []
+    for eq, label, _ in layers["boundary"]:
         x = eq.x - eq.width / 2
         y = eq.y - eq.depth / 2
-        parts.append(f'<rect x="{x:.3f}" y="{y:.3f}" width="{eq.width:.3f}" height="{eq.depth:.3f}" fill="{fill}" stroke="#333" stroke-width="0.03"/>')
+        parts.append(f'<rect x="{x:.3f}" y="{y:.3f}" width="{eq.width:.3f}" height="{eq.depth:.3f}" fill="none" stroke="#999" stroke-width="0.04" stroke-dasharray="6 4"/>')
+    for eq, label, _ in layers["wall"]:
+        x = eq.x - eq.width / 2
+        y = eq.y - eq.depth / 2
+        parts.append(f'<rect x="{x:.3f}" y="{y:.3f}" width="{eq.width:.3f}" height="{eq.depth:.3f}" fill="none" stroke="#b0b0b0" stroke-width="0.04"/>')
+    for group in ("aisle", "equipment"):
+        for eq, label, fill in layers[group]:
+            x = eq.x - eq.width / 2
+            y = eq.y - eq.depth / 2
+            parts.append(f'<rect x="{x:.3f}" y="{y:.3f}" width="{eq.width:.3f}" height="{eq.depth:.3f}" fill="{fill}" stroke="#333" stroke-width="0.03"/>')
+            labels.append((eq, label))
+    for eq, label in labels:
         parts.append(f'<text x="{eq.x:.3f}" y="{eq.y:.3f}" text-anchor="middle" dominant-baseline="middle" font-size="0.11" font-family="Arial">{label}</text>')
 
     ly = height / 2 + margin + 0.2

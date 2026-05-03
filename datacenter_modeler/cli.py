@@ -10,7 +10,7 @@ from datacenter_modeler.core_engine_adapter import find_latest_scan_output
 from datacenter_modeler.export_dxf import export_floorplan_dxf, export_floorplan_svg
 from datacenter_modeler.export_ifc import export_layout_ifc
 from datacenter_modeler.export_obj import export_layout_obj
-from datacenter_modeler.heat_load import calculate_heat_load, save_heat_report_md
+from datacenter_modeler.heat_load import calculate_heat_load, save_heat_report_json, save_heat_report_md
 from datacenter_modeler.import_scan import scan_to_layout
 from datacenter_modeler.io import ensure_output_dir, load_layout, save_layout
 from datacenter_modeler.package_outputs import create_output_package
@@ -28,6 +28,7 @@ def _export_all(layout):
     export_layout_ifc(layout, out / "datacenter_model.ifc")
     report = calculate_heat_load(layout)
     save_heat_report_md(report, out / "heat_load_report.md")
+    save_heat_report_json(report, out / "heat_load_report.json")
     (out / "validation_report.md").write_text(validate_outputs(layout, out), encoding="utf-8")
     create_output_package(out)
 

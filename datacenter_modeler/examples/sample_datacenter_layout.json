@@ -403,6 +403,38 @@
       "z": 0,
       "rotation_deg": 0,
       "status": "existing"
+    },
+    {
+      "id": "RB01",
+      "type": "room_boundary",
+      "name": "RoomBoundary",
+      "x": 6.0,
+      "y": 5.1,
+      "z": 0,
+      "width": 9.2,
+      "depth": 4.8,
+      "height": 0.1,
+      "power_kw": 0,
+      "cooling_kw": 0,
+      "note": "layout boundary",
+      "rotation_deg": 0,
+      "status": "existing"
+    },
+    {
+      "id": "W01",
+      "type": "wall",
+      "name": "NorthWall",
+      "x": 6.0,
+      "y": 7.45,
+      "z": 0,
+      "width": 9.2,
+      "depth": 0.12,
+      "height": 3.0,
+      "power_kw": 0,
+      "cooling_kw": 0,
+      "note": "visual wall line",
+      "rotation_deg": 0,
+      "status": "existing"
     }
   ]
 }
