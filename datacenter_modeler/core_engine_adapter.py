@@ -3,16 +3,12 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 SCAN_EXTS = {".ply", ".obj", ".npz"}
-DEMO_SCRIPT_CANDIDATES = [
-    Path("demo.py"),
-    Path("run_demo.py"),
-    Path("scripts/demo.py"),
-    Path("scripts/reconstruction.py"),
-    Path("reconstruction.py"),
-]
+DEMO_SCRIPT = Path("demo.py")
+DEMO_TIMEOUT_SECONDS = 180
 
 
 class CoreEngineAdapterError(RuntimeError):
@@ -45,17 +41,30 @@ def find_latest_scan_output(search_root: str | Path) -> Path | None:
 
 
 def _run_core_engine_demo(core_engine_dir: Path) -> tuple[bool, str, str | None]:
-    for script in DEMO_SCRIPT_CANDIDATES:
-        script_path = core_engine_dir / script
-        if not script_path.exists() or not script_path.is_file():
-            continue
-        cmd = ["python", str(script_path)]
-        result = subprocess.run(cmd, cwd=core_engine_dir.parent, capture_output=True, text=True, check=False)
-        output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
-        if result.returncode == 0:
-            return True, str(script_path.relative_to(core_engine_dir.parent)), output.strip()
-        return False, str(script_path.relative_to(core_engine_dir.parent)), output.strip()
-    return False, "", None
+    script_path = core_engine_dir / DEMO_SCRIPT
+    if not script_path.exists() or not script_path.is_file():
+        return False, "", None
+
+    cmd = [sys.executable, str(script_path)]
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=core_engine_dir.parent,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=DEMO_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        timeout_msg = f"Timed out after {DEMO_TIMEOUT_SECONDS}s while running {script_path.name}."
+        if exc.stderr:
+            timeout_msg = f"{timeout_msg}\n{exc.stderr.strip()}"
+        return False, str(script_path.relative_to(core_engine_dir.parent)), timeout_msg
+
+    output = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
+    if result.returncode == 0:
+        return True, str(script_path.relative_to(core_engine_dir.parent)), output.strip()
+    return False, str(script_path.relative_to(core_engine_dir.parent)), output.strip()
 
 
 def run_reconstruction(repo_root: str | Path = ".") -> Path:
@@ -71,15 +80,17 @@ def run_reconstruction(repo_root: str | Path = ".") -> Path:
 
     ok, executed_script, output = _run_core_engine_demo(core_engine_dir)
     if not ok:
-        message = "core_engine demo/reconstruction script was not found or failed; adapter integration is pending."
+        message = "core_engine/demo.py was not found or failed."
         payload = _status_payload(False, message, executed_script or None, output)
         write_reconstruction_status(status_path, payload)
         if executed_script:
             raise CoreEngineAdapterError(f"core_engine script failed: {executed_script}")
-        raise CoreEngineAdapterError("No runnable core_engine demo/reconstruction script found.")
+        raise CoreEngineAdapterError("No runnable core_engine/demo.py script found.")
 
     latest = find_latest_scan_output(core_engine_dir)
     if latest is None:
+        payload = _status_payload(False, "core_engine ran, but no .obj/.ply/.npz scan output was found.", executed_script, output)
+        write_reconstruction_status(status_path, payload)
         raise CoreEngineAdapterError("core_engine ran, but no .obj/.ply/.npz scan output was found.")
 
     dest_scan.parent.mkdir(parents=True, exist_ok=True)
