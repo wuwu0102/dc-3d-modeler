@@ -6,7 +6,11 @@ from pathlib import Path
 
 from datacenter_modeler.annotation import add_equipment
 from datacenter_modeler.calibration import apply_calibration
-from datacenter_modeler.core_engine_adapter import find_latest_scan_output
+from datacenter_modeler.core_engine_adapter import (
+    CoreEngineAdapterError,
+    find_latest_scan_output,
+    run_reconstruction,
+)
 from datacenter_modeler.export_dxf import export_floorplan_dxf, export_floorplan_svg
 from datacenter_modeler.export_ifc import export_layout_ifc
 from datacenter_modeler.export_obj import export_layout_obj
@@ -48,6 +52,11 @@ def main() -> None:
     stc.add_argument("--measured", type=float, required=True)
     stc.add_argument("--actual", type=float, required=True)
     s.add_parser("find-scan-output")
+    s.add_parser("run-reconstruction")
+    vtc = s.add_parser("video-to-cad")
+    vtc.add_argument("--reference-type", required=True)
+    vtc.add_argument("--measured", type=float, required=True)
+    vtc.add_argument("--actual", type=float, required=True)
     ae = s.add_parser("add-equipment")
     ae.add_argument("--layout", required=True)
     for a in ["type", "name", "x", "y", "z", "width", "depth", "height", "rotation-deg", "power-kw", "cooling-kw", "note"]:
@@ -88,7 +97,24 @@ def main() -> None:
         if not res:
             print("No scan output found. Please run core_engine demo first, or put scan files in datacenter_modeler/input/")
             return
-        print(f"Path: {res['path']}\nFormat: {res['format']}\nModified: {res['modified_time']}")
+        print(f"Path: {res}")
+    elif args.command == "run-reconstruction":
+        try:
+            scan_path = run_reconstruction(".")
+        except CoreEngineAdapterError as e:
+            print(f"Reconstruction failed: {e}")
+            return
+        print(f"Reconstruction scan copied to: {scan_path}")
+    elif args.command == "video-to-cad":
+        try:
+            scan_path = run_reconstruction(".")
+        except CoreEngineAdapterError as e:
+            print(f"Reconstruction failed: {e}")
+            return
+        layout = scan_to_layout(scan_path, out / "datacenter_layout_from_scan.json")
+        scaled = apply_calibration(layout, args.reference_type, args.measured, args.actual)
+        save_layout(scaled, out / "datacenter_layout_scaled.json")
+        _export_all(scaled)
     elif args.command == "add-equipment":
         add_equipment(
             args.layout,
