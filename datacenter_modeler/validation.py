@@ -27,6 +27,18 @@ def validate_outputs(layout: DataCenterLayout, output_dir: str | Path) -> str:
             errors.append(f"Missing output: {req}")
     if not (out_dir / "datacenter_model.ifc").exists():
         warnings.append("IFC output missing (warning only)")
+    has_manual_equipment = any(eq.type in {"rack", "crac", "door"} for eq in layout.equipment)
+    if layout.source_mode == "scan" and not has_manual_equipment:
+        warnings.append("Scan imported but equipment annotation is not completed.")
 
-    lines = ["# Validation Report", "", "## Errors"] + ([f"- {e}" for e in errors] or ["- None"]) + ["", "## Warnings"] + ([f"- {w}" for w in warnings] or ["- None"])
+    lines = [
+        "# Validation Report",
+        "",
+        "## Metadata",
+        f"- source_mode: {layout.source_mode}",
+        f"- scan input path: {layout.scan_input_path or 'N/A'}",
+        f"- equipment manually annotated: {'yes' if has_manual_equipment else 'no'}",
+        "",
+        "## Errors",
+    ] + ([f"- {e}" for e in errors] or ["- None"]) + ["", "## Warnings"] + ([f"- {w}" for w in warnings] or ["- None"])
     return "\n".join(lines) + "\n"

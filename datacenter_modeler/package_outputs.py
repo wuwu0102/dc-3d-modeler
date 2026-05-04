@@ -15,6 +15,10 @@ Files:
 - validation_report.md: 交付檢核摘要。
 - datacenter_layout_scaled.json: 校正後的版面資料。
 - datacenter_layout.json (optional): 原始版面輸入資料。
+
+Scan-to-CAD 說明：
+- 第一階段 scan-to-cad 只會輸出 scan boundary（含校正參考與尺寸標註）。
+- 需執行 add-equipment 或下一階段自動辨識後，才會輸出 rack / CRAC / aisle layout。
 """
 
 
