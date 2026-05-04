@@ -70,11 +70,14 @@ def scan_to_layout(input_path: str | Path, output_layout_path: str | Path) -> Da
     d = max(b["max_y"] - b["min_y"], 2.0)
     h = max(b["max_z"] - b["min_z"], 2.2)
 
-    layout = DataCenterLayout(project_name="Scan Imported Data Center")
+    layout = DataCenterLayout(
+        project_name="Scan Imported Data Center",
+        source_mode="scan",
+        scan_input_path=str(Path(input_path)),
+    )
     layout.equipment = [
-        Equipment(id="room_boundary", type="room_boundary", name="RoomBoundary", x=cx, y=cy, z=0, width=w, depth=d, height=0.05, note="placeholder from scan bounds"),
-        Equipment(id="door_placeholder", type="door", name="DoorPlaceholder", x=b["min_x"] + 0.6, y=cy, z=0, width=1.0, depth=0.2, height=2.1, note="placeholder"),
-        Equipment(id="cal_ref", type="wall", name="CalibrationReferencePlaceholder", x=cx, y=b["min_y"] + 0.2, z=0, width=1.0, depth=0.2, height=2.1, note="use for calibration reference"),
+        Equipment(id="room_boundary", type="room_boundary", name="RoomBoundary", x=cx, y=cy, z=0, width=w, depth=d, height=0.05, note="scan boundary"),
+        Equipment(id="cal_ref", type="wall", name="CalibrationReference", x=cx, y=b["min_y"] + 0.2, z=0, width=1.0, depth=0.2, height=2.1, note="calibration reference"),
     ]
     save_layout(layout, output_layout_path)
     return layout

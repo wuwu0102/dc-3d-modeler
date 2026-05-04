@@ -47,3 +47,36 @@ def test_demo_all_generates_expected_files_and_dxf_rules():
         "heat_load_report.md",
     }:
         assert expected in names
+
+
+def test_scan_to_cad_outputs_boundary_preview_only():
+    scan_path = Path("cube.obj")
+    scan_path.write_text(
+        "\n".join(
+            [
+                "v -1 -1 0",
+                "v 1 -1 0",
+                "v 1 1 0",
+                "v -1 1 0",
+                "v -1 -1 1",
+                "v 1 -1 1",
+                "v 1 1 1",
+                "v -1 1 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "datacenter_modeler.cli", "scan-to-cad", "--scan", str(scan_path), "--reference-type", "rack-width", "--measured", "1", "--actual", "600"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    out_dir = Path("datacenter_modeler/output")
+    svg_content = (out_dir / "datacenter_floorplan.svg").read_text(encoding="utf-8")
+    validation = (out_dir / "validation_report.md").read_text(encoding="utf-8")
+    assert "Scan Boundary Preview" in svg_content
+    assert 'fill="white"' in svg_content
+    assert "Legend: Rack / CRAC" not in svg_content
+    assert "Scan imported but equipment annotation is not completed." in validation

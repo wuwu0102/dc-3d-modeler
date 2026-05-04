@@ -35,6 +35,8 @@ class DataCenterLayout:
     project_name: str
     unit: str = "m"
     scale_factor: float = 1.0
+    source_mode: str = "sample"
+    scan_input_path: str = ""
     calibration_reference: Optional[CalibrationReference] = None
     equipment: list[Equipment] = field(default_factory=list)
 
@@ -52,6 +54,8 @@ class DataCenterLayout:
             project_name=data["project_name"],
             unit=data.get("unit", "m"),
             scale_factor=data.get("scale_factor", 1.0),
+            source_mode=data.get("source_mode", "sample"),
+            scan_input_path=data.get("scan_input_path", ""),
             calibration_reference=calibration,
             equipment=equipment,
         )
@@ -82,6 +86,8 @@ class DataCenterLayout:
             project_name=self.project_name,
             unit=self.unit,
             scale_factor=self.scale_factor * scale_factor,
+            source_mode=self.source_mode,
+            scan_input_path=self.scan_input_path,
             calibration_reference=self.calibration_reference,
             equipment=scaled_equipment,
         )
